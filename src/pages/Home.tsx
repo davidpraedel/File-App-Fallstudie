@@ -1,4 +1,4 @@
-import { IonContent, IonHeader, IonItem, IonLabel, IonList, IonPage, IonTitle, IonToolbar, IonIcon, IonButton } from '@ionic/react';
+import { IonContent, IonHeader, IonItem, IonLabel, IonList, IonPage, IonTitle, IonToolbar, IonIcon, IonButton, IonButtons } from '@ionic/react';
 import { folderOutline, documentOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -6,21 +6,24 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 const Home: React.FC = () => {
   //beispiel Daten
   const [files, setFiles] = useState<string[]>([]);
+  const [currentPath, setCurrentPath] = useState('');
 
-  //Daten laden
-  //Daten laden
-const loadFiles = async () => {
-  try {
-    const result = await Filesystem.readdir({
-      path: '',
-      directory: Directory.Documents
-    });
-    console.log('Dateien geladen:', result);
-    setFiles(result.files);
-  } catch (err) {
-    console.error('Es gab einen Fehler beim Laden der Dateien:', err);
-  }
-};
+  const loadFiles = async (path = '') => {
+    try {
+      const result = await Filesystem.readdir({
+        path: path,
+        directory: Directory.Documents
+      });
+      setFiles(result.files);
+      setCurrentPath(path);
+    } catch (err) {
+      console.error('Es gab einen Fehler beim Laden der Dateien:', err);
+    }
+  };
+  
+  useEffect(() => {
+    loadFiles();
+  }, []);
 
 useEffect(() => {
   loadFiles();
@@ -42,6 +45,34 @@ const addFolder = async () => {
   }
 };
 
+const deleteFile = async (fileName: string) => {
+  try {
+    const file = files.find(file => file.name === fileName);
+
+    if (file.type === 'directory') {
+      const result = await Filesystem.readdir({
+        path: `${currentPath}/${fileName}`,
+        directory: Directory.Documents
+      });
+
+      if (result.files.length > 0) {
+        alert('Der Ordner ist nicht leer und kann nicht gelöscht werden.');
+        return;
+      }
+    }
+
+    await Filesystem.deleteFile({
+      path: `${currentPath}/${fileName}`,
+      directory: Directory.Documents
+    });
+
+    // Aktualisieren Sie die Dateiliste
+    await loadFiles(currentPath);
+  } catch (err) {
+    console.error('Es gab einen Fehler beim Löschen der Datei:', err);
+  }
+};
+
 const addFile = async () => {
   try {
     // Öffnen Sie den Dateiauswahldialog
@@ -54,17 +85,31 @@ const addFile = async () => {
     reader.onload = async () => {
       // Kopieren Sie die Datei in das App-Verzeichnis
       await Filesystem.writeFile({
-        path: file.name,
+        path: `${currentPath}/${file.name}`,
         data: reader.result,
         directory: Directory.Documents,
         encoding: 'utf-8'
       });
 
       // Aktualisieren Sie die Dateiliste
-      await loadFiles();
+      await loadFiles(currentPath);
     };
   } catch (err) {
     console.error('Es gab einen Fehler beim Hinzufügen der Datei:', err);
+  }
+};
+
+const openFile = async (fileName: string) => {
+  try {
+    const result = await Filesystem.readFile({
+      path: fileName,
+      directory: Directory.Documents,
+      encoding: 'utf-8'
+    });
+
+    alert(result.data);
+  } catch (err) {
+    console.error('Es gab einen Fehler beim Öffnen der Datei:', err);
   }
 };
 
@@ -74,12 +119,15 @@ const addFile = async () => {
       <IonHeader>
         <IonToolbar>
           <IonTitle>Dateimanager App</IonTitle>
+          <IonButtons slot="end">
+    <IonButton onClick={() => loadFiles(currentPath.substring(0, currentPath.lastIndexOf('/')))}>Zurück</IonButton>
+  </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent fullscreen>
         <IonHeader collapse="condense">
           <IonToolbar>
-            <IonTitle size="large">Blank</IonTitle>
+          <IonTitle size="large">Aktueller Pfad: {currentPath}</IonTitle>
           </IonToolbar>
         </IonHeader>
         <IonButton onClick={addFolder}>Ordner hinzufügen</IonButton>
@@ -88,7 +136,8 @@ const addFile = async () => {
   {files.map((file, index) => (
     <IonItem key={index}>
       <IonIcon icon={file.type === 'directory' ? folderOutline : documentOutline} slot="start" />
-      <IonLabel>{file.name}</IonLabel>
+      <IonLabel onClick={() => file.type === 'directory' ? loadFiles(`${currentPath}/${file.name}`) : openFile(`${currentPath}/${file.name}`)}>{file.name}</IonLabel>
+      <IonButton slot="end" onClick={() => deleteFile(file.name)}>Löschen</IonButton>
     </IonItem>
   ))}
 </IonList>
