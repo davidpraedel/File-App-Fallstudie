@@ -33,12 +33,12 @@ const addFolder = async () => {
   const folderName = prompt('Geben Sie den Namen des neuen Ordners ein');
   if (folderName) {
     await Filesystem.mkdir({
-      path: folderName,
+      path: `${currentPath}/${folderName}`,
       directory: Directory.Documents
     });
     // Aktualisieren Sie die Dateiliste
     const result = await Filesystem.readdir({
-      path: '',
+      path: `${currentPath}`,
       directory: Directory.Documents
     });
     setFiles(result.files);
