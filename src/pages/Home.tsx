@@ -2,6 +2,8 @@ import { IonContent, IonHeader, IonItem, IonLabel, IonList, IonPage, IonTitle, I
 import { folderOutline, documentOutline } from 'ionicons/icons';
 import { useEffect, useState } from 'react';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { FileOpener } from '@capawesome-team/capacitor-file-opener';
+import { FilePicker } from '@capawesome/capacitor-file-picker';
 
 const Home: React.FC = () => {
   //beispiel Daten
@@ -20,10 +22,6 @@ const Home: React.FC = () => {
       console.error('Es gab einen Fehler beim Laden der Dateien:', err);
     }
   };
-
-  useEffect(() => {
-    loadFiles();
-  }, []);
 
   useEffect(() => {
     loadFiles();
@@ -73,52 +71,90 @@ const Home: React.FC = () => {
     }
   };
 
-  const addFile = async () => {
+
+  async function addFile() {
     try {
-      // Öffnen Sie den Dateiauswahldialog
-      const [fileHandle] = await window.showOpenFilePicker();
-      const file = await fileHandle.getFile();
-
-      // Lesen Sie die Datei als Text
-      const reader = new FileReader();
-      reader.readAsText(file);
-      reader.onload = async () => {
-        // Kopieren Sie die Datei in das App-Verzeichnis
-        await Filesystem.writeFile({
-          path: `${currentPath}/${file.name}`,
-          data: reader.result,
-          directory: Directory.Documents,
-          encoding: 'utf-8'
-        });
-
-        // Aktualisieren Sie die Dateiliste
-        await loadFiles(currentPath);
-      };
-    } catch (err) {
-      console.error('Es gab einen Fehler beim Hinzufügen der Datei:', err);
-    }
-  };
-
-  const openFile = async (fileName: string) => {
-    try {
-      const result = await Filesystem.readFile({
-        path: fileName,
-        directory: Directory.Documents,
-        encoding: 'utf-8'
+      // Datei mit dem FilePicker-Plugin öffnen
+      const result = await FilePicker.pickFiles({
+        multiple: false
       });
-
-      alert(result.data);
-    } catch (err) {
-      console.error('Es gab einen Fehler beim Öffnen der Datei:', err);
+  
+      if (result.files.length > 0) {
+        const file = result.files[0];
+        const fileName = file.name;
+  
+        // Datei als Blob laden
+        const response = await fetch(file.data);
+        const blob = await response.blob();
+  
+        // Datei in einen Base64-String konvertieren
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          const base64Data = reader.result?.toString().split(',')[1];
+  
+          if (base64Data) {
+            // Datei mit dem Filesystem-Plugin speichern
+            await Filesystem.writeFile({
+              path: fileName,
+              data: base64Data,
+              directory: Directory.Documents
+            });
+  
+            console.log('File saved successfully!');
+          }
+          await loadFiles(currentPath);
+        };
+  
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+        };
+      } else {
+        console.log('No file selected');
+      }
+    } catch (error) {
+      console.error('Error picking or saving file:', error);
     }
-  };
+  }
+
+
+  async function openFile(path: string) {
+    try {
+      // Datei vom Filesystem-Plugin lesen
+      const result = await Filesystem.readFile({
+        path: path,
+        directory: Directory.Documents
+      });
+  
+      const base64Data = result.data;
+  
+      // Temporäre Datei mit Filesystem-Plugin schreiben, um diese zu öffnen
+      const tempPath = `temp_${path}`;
+      await Filesystem.writeFile({
+        path: tempPath,
+        data: base64Data,
+        directory: Directory.Cache
+      });
+  
+      // Datei mit dem FileOpener-Plugin öffnen
+      await FileOpener.open({
+        filePath: `${Filesystem.getUri({ path: tempPath, directory: Directory.Cache }).uri}`,
+        fileType: 'application/pdf' // Angepasst je nach Dateityp, z.B. 'image/jpeg', 'text/plain' etc.
+      });
+  
+      console.log('File opened successfully!');
+    } catch (error) {
+      console.error('Error opening file:', error);
+    }
+  }
+  
 
 
   return (
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Dateimanager App</IonTitle>
+          <IonTitle></IonTitle>
           <IonText color="medium" style={{ paddingLeft: '10px' }}>
             Pfad: <strong>{currentPath}</strong>
           </IonText>
