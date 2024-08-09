@@ -16,7 +16,7 @@ const Home: React.FC = () => {
         path: path,
         directory: Directory.Documents
       });
-      setFiles(result.files);
+      setFiles(result.files.map(file => file.name));
       setCurrentPath(path);
     } catch (err) {
       console.error('Es gab einen Fehler beim Laden der Dateien:', err);
@@ -39,7 +39,7 @@ const Home: React.FC = () => {
         path: `${currentPath}`,
         directory: Directory.Documents
       });
-      setFiles(result.files);
+      setFiles(result.files.map(file => file.name));
     }
   };
 
@@ -73,48 +73,25 @@ const Home: React.FC = () => {
 
 
   async function addFile() {
-    try {
-      // Datei mit dem FilePicker-Plugin öffnen
-      const result = await FilePicker.pickFiles({
-        multiple: false
+    const result = await FilePicker.pickFiles({
+      types: ['image/png'],
+    });
+    const file = result.files[0];
+  
+    if (file.blob) {
+      const rawFile = new File([file.blob], file.name, {
+        type: file.mimeType,
       });
-  
-      if (result.files.length > 0) {
-        const file = result.files[0];
-        const fileName = file.name;
-  
-        // Datei als Blob laden
-        const response = await fetch(file.data);
-        const blob = await response.blob();
-  
-        // Datei in einen Base64-String konvertieren
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-          const base64Data = reader.result?.toString().split(',')[1];
-  
-          if (base64Data) {
-            // Datei mit dem Filesystem-Plugin speichern
-            await Filesystem.writeFile({
-              path: fileName,
-              data: base64Data,
-              directory: Directory.Documents
-            });
-  
-            console.log('File saved successfully!');
-          }
-          await loadFiles(currentPath);
-        };
-  
-        reader.onerror = (error) => {
-          console.error('FileReader error:', error);
-        };
-      } else {
-        console.log('No file selected');
-      }
-    } catch (error) {
-      console.error('Error picking or saving file:', error);
+      console.log(rawFile);
+
+      await Filesystem.writeFile({
+        path: `${currentPath}/${file.name}`,
+        data: rawFile,
+        directory: Directory.Documents,
+     //   encoding: 'utf8',
+      });
     }
+    await loadFiles(currentPath);
   }
 
 
@@ -130,18 +107,18 @@ const Home: React.FC = () => {
   
       // Temporäre Datei mit Filesystem-Plugin schreiben, um diese zu öffnen
       const tempPath = `temp_${path}`;
+      const tempUri = await Filesystem.getUri({ path: tempPath, directory: Directory.Cache });
       await Filesystem.writeFile({
         path: tempPath,
         data: base64Data,
         directory: Directory.Cache
       });
-  
+
       // Datei mit dem FileOpener-Plugin öffnen
-      await FileOpener.open({
-        filePath: `${Filesystem.getUri({ path: tempPath, directory: Directory.Cache }).uri}`,
-        fileType: 'application/pdf' // Angepasst je nach Dateityp, z.B. 'image/jpeg', 'text/plain' etc.
+      await FileOpener.openFile({
+        path: tempUri.uri,
       });
-  
+
       console.log('File opened successfully!');
     } catch (error) {
       console.error('Error opening file:', error);
