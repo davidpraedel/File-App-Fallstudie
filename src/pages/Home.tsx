@@ -68,20 +68,20 @@ const Home: React.FC = () => {
   const addFile = async () => {
     try {
       const result = await FilePicker.pickFiles({
-        readData: true,  // Ermöglicht das Lesen der Datei als Base64
+        readData: true,
       });
   
       if (result && result.files && result.files.length > 0) {
-        const file = result.files[0];  // Nehmen wir nur die erste ausgewählte Datei
+        const file = result.files[0];
   
-        // Speichern Sie die Datei im Verzeichnis
+        // Speichern der Datei im angegebenen Pfad
         await Filesystem.writeFile({
           path: `${currentPath}/${file.name}`,
-          data: file.data,  // Verwenden Sie die Base64-Daten direkt
+          data: file.data,
           directory: Directory.Data,
         });
   
-        // Aktualisieren Sie die Dateiliste
+        // Aktualisieren der Dateiliste
         loadFiles(currentPath);
       }
     } catch (error) {
@@ -89,13 +89,13 @@ const Home: React.FC = () => {
     }
   };
   
-
-  const openFile = async (fileName: string) => {
-    try {
-      const filePath = `${currentPath}/${fileName}`;
   
-      // Der Dateipfad wird aus dem Verzeichnis ermittelt
-      const { uri } = await Filesystem.getUri({
+
+  const openFile = async (filePath: string) => {
+    try {
+  
+      // Erhalte den URI für die Datei
+     const { uri } = await Filesystem.getUri({
         path: filePath,
         directory: Directory.Data,
       });
@@ -107,6 +107,7 @@ const Home: React.FC = () => {
       console.error('Fehler beim Öffnen der Datei:', error);
     }
   };
+  
   
 
 
