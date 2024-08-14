@@ -6,23 +6,29 @@ import { FileOpener } from '@capawesome-team/capacitor-file-opener';
 import { FilePicker } from '@capawesome/capacitor-file-picker';
 
 const Home: React.FC = () => {
-  //beispiel Daten
-  const [files, setFiles] = useState<string[]>([]);
+  // Beispiel Daten
+  const [files, setFiles] = useState<{name: string, type: string}[]>([]);
   const [currentPath, setCurrentPath] = useState('');
 
   const loadFiles = async (path = '') => {
     try {
       const result = await Filesystem.readdir({
-        path: path,
-        directory: Directory.Documents
+        path,
+        directory: Directory.Data,
       });
-      setFiles(result.files.map(file => file.name));
+  
+      const filesWithTypes = result.files.map(file => ({
+        name: file.name,
+        type: file.type === 'directory' ? 'directory' : 'file',
+      }));
+  
+      setFiles(filesWithTypes);
       setCurrentPath(path);
-    } catch (err) {
-      console.error('Es gab einen Fehler beim Laden der Dateien:', err);
+    } catch (error) {
+      console.error("Fehler beim Laden der Dateien:", error);
     }
   };
-
+  
   useEffect(() => {
     loadFiles();
   }, []);
@@ -39,93 +45,64 @@ const Home: React.FC = () => {
         path: `${currentPath}`,
         directory: Directory.Documents
       });
-      setFiles(result.files.map(file => file.name));
+      setFiles(result.files);
     }
   };
+  
+  
 
   const deleteFile = async (fileName: string) => {
     try {
-      const file = files.find(file => file.name === fileName);
-
-      if (file.type === 'directory') {
-        const result = await Filesystem.readdir({
-          path: `${currentPath}/${fileName}`,
-          directory: Directory.Documents
-        });
-
-        if (result.files.length > 0) {
-          alert('Der Ordner ist nicht leer und kann nicht gelöscht werden.');
-          return;
-        }
-      }
-
+      const fullPath = `${currentPath}/${fileName}`;
+      
       await Filesystem.deleteFile({
-        path: `${currentPath}/${fileName}`,
-        directory: Directory.Documents
+        path: fullPath,
+        directory: Directory.Data,
       });
-
-      // Aktualisieren Sie die Dateiliste
-      await loadFiles(currentPath);
-    } catch (err) {
-      console.error('Es gab einen Fehler beim Löschen der Datei:', err);
+      loadFiles(currentPath); // Aktualisiere die Dateiliste nach dem Löschen
+    } catch (error) {
+      console.error("Fehler beim Löschen der Datei:", error);
     }
   };
-
-
-  async function addFile() {
-    const result = await FilePicker.pickFiles({
-      types: ['image/png'],
-    });
-    const file = result.files[0];
   
-    if (file.blob) {
-      const rawFile = new File([file.blob], file.name, {
-        type: file.mimeType,
-      });
-      console.log(rawFile);
-
-      await Filesystem.writeFile({
-        path: `${currentPath}/${file.name}`,
-        data: rawFile,
-        directory: Directory.Documents,
-     //   encoding: 'utf8',
-      });
+  async function addFile() {
+    try {
+      const result = await FilePicker.pickFiles({});
+  
+      if (result && result.files && result.files.length > 0) {
+        const file = result.files[0]; // Nehmen wir nur die erste ausgewählte Datei
+        
+        // Überprüfen Sie, ob die Daten bereits als Base64 vorliegen
+        let fileData = file.data;
+        if (!file.base64String && typeof fileData !== 'string') {
+          // Konvertieren Sie die Daten in einen Base64-String, falls dies erforderlich ist
+          fileData = btoa(String.fromCharCode.apply(null, new Uint8Array(file.data)));
+        }
+        
+        await Filesystem.writeFile({
+          path: `${currentPath}/${file.name}`,
+          data: fileData,
+          directory: Directory.Data,
+        });
+        loadFiles(currentPath); // Aktualisiere die Dateiliste
+      }
+    } catch (error) {
+      console.error("Fehler beim Hinzufügen der Datei:", error);
     }
-    await loadFiles(currentPath);
   }
-
+  
+  
 
   async function openFile(path: string) {
     try {
-      // Datei vom Filesystem-Plugin lesen
-      const result = await Filesystem.readFile({
-        path: path,
-        directory: Directory.Documents
-      });
-  
-      const base64Data = result.data;
-  
-      // Temporäre Datei mit Filesystem-Plugin schreiben, um diese zu öffnen
-      const tempPath = `temp_${path}`;
-      const tempUri = await Filesystem.getUri({ path: tempPath, directory: Directory.Cache });
-      await Filesystem.writeFile({
-        path: tempPath,
-        data: base64Data,
-        directory: Directory.Cache
-      });
-
-      // Datei mit dem FileOpener-Plugin öffnen
       await FileOpener.openFile({
-        path: tempUri.uri,
+        path: path,
       });
-
-      console.log('File opened successfully!');
     } catch (error) {
-      console.error('Error opening file:', error);
+      console.error("Fehler beim Öffnen der Datei:", error);
     }
   }
   
-
 
   return (
     <IonPage>
