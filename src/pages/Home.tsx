@@ -7,7 +7,7 @@ import { FilePicker } from '@capawesome/capacitor-file-picker';
 
 const Home: React.FC = () => {
   // Beispiel Daten
-  const [files, setFiles] = useState<{name: string, type: string}[]>([]);
+  const [files, setFiles] = useState<{ name: string, type: string }[]>([]);
   const [currentPath, setCurrentPath] = useState('');
 
   const loadFiles = async (path = '') => {
@@ -16,19 +16,19 @@ const Home: React.FC = () => {
         path,
         directory: Directory.Data,
       });
-  
+
       const filesWithTypes = result.files.map(file => ({
         name: file.name,
         type: file.type === 'directory' ? 'directory' : 'file',
       }));
-  
+
       setFiles(filesWithTypes);
       setCurrentPath(path);
     } catch (error) {
       console.error("Fehler beim Laden der Dateien:", error);
     }
   };
-  
+
   useEffect(() => {
     loadFiles();
   }, []);
@@ -48,13 +48,13 @@ const Home: React.FC = () => {
       setFiles(result.files);
     }
   };
-  
-  
+
+
 
   const deleteFile = async (fileName: string) => {
     try {
       const fullPath = `${currentPath}/${fileName}`;
-      
+
       await Filesystem.deleteFile({
         path: fullPath,
         directory: Directory.Data,
@@ -64,45 +64,52 @@ const Home: React.FC = () => {
       console.error("Fehler beim Löschen der Datei:", error);
     }
   };
-  
-  async function addFile() {
+
+  const addFile = async () => {
     try {
-      const result = await FilePicker.pickFiles({});
+      const result = await FilePicker.pickFiles({
+        readData: true,  // Ermöglicht das Lesen der Datei als Base64
+      });
   
       if (result && result.files && result.files.length > 0) {
-        const file = result.files[0]; // Nehmen wir nur die erste ausgewählte Datei
-        
-        // Überprüfen Sie, ob die Daten bereits als Base64 vorliegen
-        let fileData = file.data;
-        if (!file.base64String && typeof fileData !== 'string') {
-          // Konvertieren Sie die Daten in einen Base64-String, falls dies erforderlich ist
-          fileData = btoa(String.fromCharCode.apply(null, new Uint8Array(file.data)));
-        }
-        
+        const file = result.files[0];  // Nehmen wir nur die erste ausgewählte Datei
+  
+        // Speichern Sie die Datei im Verzeichnis
         await Filesystem.writeFile({
           path: `${currentPath}/${file.name}`,
-          data: fileData,
+          data: file.data,  // Verwenden Sie die Base64-Daten direkt
           directory: Directory.Data,
         });
-        loadFiles(currentPath); // Aktualisiere die Dateiliste
+  
+        // Aktualisieren Sie die Dateiliste
+        loadFiles(currentPath);
       }
     } catch (error) {
       console.error("Fehler beim Hinzufügen der Datei:", error);
     }
-  }
-  
+  };
   
 
-  async function openFile(path: string) {
+  const openFile = async (fileName: string) => {
     try {
-      await FileOpener.openFile({
-        path: path,
-      });
-    } catch (error) {
-      console.error("Fehler beim Öffnen der Datei:", error);
-    }
-  }
+      const filePath = `${currentPath}/${fileName}`;
   
+      // Der Dateipfad wird aus dem Verzeichnis ermittelt
+      const { uri } = await Filesystem.getUri({
+        path: filePath,
+        directory: Directory.Data,
+      });
+  
+      // Datei öffnen
+      await FileOpener.openFile({ path: uri });
+      console.log('Datei geöffnet:', filePath);
+    } catch (error) {
+      console.error('Fehler beim Öffnen der Datei:', error);
+    }
+  };
+  
+
+
 
   return (
     <IonPage>
@@ -126,7 +133,9 @@ const Home: React.FC = () => {
           {files.map((file, index) => (
             <IonItem key={index}>
               <IonIcon icon={file.type === 'directory' ? folderOutline : documentOutline} slot="start" />
-              <IonLabel onClick={() => file.type === 'directory' ? loadFiles(`${currentPath}/${file.name}`) : openFile(`${currentPath}/${file.name}`)}>{file.name}</IonLabel>
+              <IonLabel onClick={() => file.type === 'directory' ? loadFiles(`${currentPath}/${file.name}`) : openFile(`${currentPath}/${file.name}`)}>
+                {file.name}
+              </IonLabel>
               <IonButton slot="end" onClick={() => deleteFile(file.name)}>Löschen</IonButton>
             </IonItem>
           ))}
